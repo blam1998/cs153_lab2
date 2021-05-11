@@ -89,3 +89,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_set_prior(void){
+    int i;
+    if(argint(0,&i) >= 0 && argint(0,&i) < 32) {
+        set_prior(i);
+    }
+    else{
+        return -1;
+    }
+    return 0;
+}

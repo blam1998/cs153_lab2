@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->prior_val = 31;    //our implementation, subject to change
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -188,7 +188,8 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-
+  //copyuvm copies a parent's process page table and create a copy of it for the child
+  //kfree freees the memory pointed at by np->kstack --> (char*). this is only taken when fork fails which returns -1.
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -199,6 +200,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->prior_val = curproc->prior_val;   //our code
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -531,4 +533,12 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+set_prior(int val){
+    struct proc *curproc = myproc();
+    curproc->prior_val = val;
+    yield();
+    return 0;
 }
