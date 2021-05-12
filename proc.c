@@ -350,7 +350,6 @@ scheduler(void)
       //after this while statement, we will go through switching context.
       else if (p->state == RUNNABLE && p->prior_val < np->prior_val){
           np = p;
-          cprintf("Testing\n");
           while(np < &ptable.proc[NPROC]){
               if (np->state != RUNNABLE){
                   continue;
@@ -361,8 +360,6 @@ scheduler(void)
               ++np;
           }
       }
-
-
 
 
 
@@ -382,17 +379,22 @@ scheduler(void)
 
       //if it's runnable, then it is waiting.
       //if it is running, then it is not waiting.
+      //stopping at 0 or 31, going overboard through starvation may mess up the priority values.
+
       for (temp = ptable.proc; temp < &ptable.proc[NPROC]; ++temp){
-          if (temp != RUNNABLE){
+
+          if (temp->state != RUNNABLE){
               continue;
           }
-          else if (temp->state == RUNNABLE){
-              temp->prior_val = (temp->prior_val - 1) % 32;
+          else if (temp->state == RUNNABLE && temp->prior_val > 0){
+              temp->prior_val = (temp->prior_val - 1);
           }
-          else if (temp->state == RUNNING){
-              temp->prior_val = (temp->prior_val + 1) % 32;
+          else if (temp->state == RUNNING && temp->prior_val < 31){
+              temp->prior_val = (temp->prior_val + 1);
           }
       }
+
+      cprintf("Reach end\n");
     }
 
     release(&ptable.lock);
