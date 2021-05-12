@@ -325,9 +325,12 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *np;
+  struct proc *temp;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -335,8 +338,33 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+        np = ptable.proc;
+      if(p->state != RUNNABLE){
+          continue;
+      }
+
+      //found a runnable and higher priority process
+      //start searching from there until the end.
+      //if theres a higher priority process, p will be updated.
+      //if it's not runnable or it's priority is less than what we have, continue searching.
+      //after this while statement, we will go through switching context.
+      else if (p->state == RUNNABLE && p->prior_val < np->prior_val){
+          np = p;
+          cprintf("Testing\n");
+          while(np < &ptable.proc[NPROC]){
+              if (np->state != RUNNABLE){
+                  continue;
+              }
+              else if (np->state == RUNNABLE && np->prior_val < p->prior_val){
+                  p = np;
+              }
+              ++np;
+          }
+      }
+
+
+
+
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -351,7 +379,22 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
+      //if it's runnable, then it is waiting.
+      //if it is running, then it is not waiting.
+      for (temp = ptable.proc; temp < &ptable.proc[NPROC]; ++temp){
+          if (temp != RUNNABLE){
+              continue;
+          }
+          else if (temp->state == RUNNABLE){
+              temp->prior_val = (temp->prior_val - 1) % 32;
+          }
+          else if (temp->state == RUNNING){
+              temp->prior_val = (temp->prior_val + 1) % 32;
+          }
+      }
     }
+
     release(&ptable.lock);
 
   }
