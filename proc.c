@@ -337,8 +337,8 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    np = ptable.proc;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        np = ptable.proc;
       if(p->state != RUNNABLE){
           continue;
       }
@@ -348,11 +348,11 @@ scheduler(void)
       //if theres a higher priority process, p will be updated.
       //if it's not runnable or it's priority is less than what we have, continue searching.
       //after this while statement, we will go through switching context.
-      else if (p->state == RUNNABLE && p->prior_val < np->prior_val){
-          np = p;
+      else if (p->state == RUNNABLE){
+              np = p + 1;
           while(np < &ptable.proc[NPROC]){
               if (np->state != RUNNABLE){
-                  continue;
+                  ++np;
               }
               else if (np->state == RUNNABLE && np->prior_val < p->prior_val){
                   p = np;
@@ -394,7 +394,8 @@ scheduler(void)
           }
       }
 
-      cprintf("Reach end\n");
+
+
     }
 
     release(&ptable.lock);
