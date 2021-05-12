@@ -93,7 +93,7 @@ sys_uptime(void)
 int
 sys_set_prior(void){
     int i;
-    i = argint(0,&i) % 32;
+    argint(0,&i);
     set_prior(i);
     return 0;
 }

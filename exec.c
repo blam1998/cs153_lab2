@@ -18,9 +18,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
-
   begin_op();
-
   if((ip = namei(path)) == 0){
     end_op();
     cprintf("exec: fail\n");
@@ -92,6 +90,13 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
+
+  acquire(&tickslock);
+  curproc->prev_ticks = ticks;
+  curproc->start = ticks;
+  curproc->burst = 0;
+  wakeup(&ticks);
+  release(&tickslock);
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;

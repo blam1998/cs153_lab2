@@ -249,6 +249,16 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
+  acquire(&tickslock);
+  curproc->finish = ticks;
+  int turnaround = curproc->finish - curproc->start;
+  int burst_time = curproc->burst;
+  cprintf("Priority: %d\n", curproc->prior_val);
+  cprintf("Turnaround: %d\n", turnaround);
+  cprintf("Bursttime: %d\n", burst_time);
+  cprintf("Waiting time: %d\n\n", turnaround - burst_time);
+  release(&tickslock);
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -332,7 +342,7 @@ scheduler(void)
 
 
   for(;;){
-    // Enable interrupts on this processor.
+     //Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
@@ -348,12 +358,13 @@ scheduler(void)
       //if theres a higher priority process, p will be updated.
       //if it's not runnable or it's priority is less than what we have, continue searching.
       //after this while statement, we will go through switching context.
+
       else if (p->state == RUNNABLE){
+          if (p < &ptable.proc[NPROC]){
               np = p + 1;
+          }
           while(np < &ptable.proc[NPROC]){
-              if (np->state != RUNNABLE){
-                  ++np;
-              }
+              if (np->state != RUNNABLE){}
               else if (np->state == RUNNABLE && np->prior_val < p->prior_val){
                   p = np;
               }
@@ -363,15 +374,26 @@ scheduler(void)
 
 
 
+
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+
       c->proc = p;
+
+      acquire(&tickslock);
+      if (p->prev_ticks < ticks){
+          p->burst += 1;
+          p->prev_ticks = ticks;
+      }
+      release(&tickslock);
+
       switchuvm(p);
       p->state = RUNNING;
-
       swtch(&(c->scheduler), p->context);
       switchkvm();
+
+
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
