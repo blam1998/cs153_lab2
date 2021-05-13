@@ -27,6 +27,13 @@ exec(char *path, char **argv)
   ilock(ip);
   pgdir = 0;
 
+
+  acquire(&tickslock);
+  curproc->prev_ticks = ticks;
+  curproc->start = ticks;
+  curproc->burst = 0;
+  release(&tickslock);
+
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
@@ -91,12 +98,7 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-  acquire(&tickslock);
-  curproc->prev_ticks = ticks;
-  curproc->start = ticks;
-  curproc->burst = 0;
-  wakeup(&ticks);
-  release(&tickslock);
+ //old spot
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;

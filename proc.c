@@ -233,6 +233,8 @@ exit(void)
   struct proc *p;
   int fd;
 
+
+
   if(curproc == initproc)
     panic("init exiting");
 
@@ -249,15 +251,7 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-  acquire(&tickslock);
-  curproc->finish = ticks;
-  int turnaround = curproc->finish - curproc->start;
-  int burst_time = curproc->burst;
-  cprintf("Priority: %d\n", curproc->prior_val);
-  cprintf("Turnaround: %d\n", turnaround);
-  cprintf("Bursttime: %d\n", burst_time);
-  cprintf("Waiting time: %d\n\n", turnaround - burst_time);
-  release(&tickslock);
+
 
   acquire(&ptable.lock);
 
@@ -272,6 +266,18 @@ exit(void)
         wakeup1(initproc);
     }
   }
+
+
+    acquire(&tickslock);
+    curproc->finish = ticks;
+    int turnaround = curproc->finish - curproc->start;
+    int burst_time = curproc->burst;
+    cprintf("Priority: %d\n", curproc->prior_val);
+    cprintf("Turnaround: %d\n", turnaround);
+    cprintf("Bursttime: %d\n", burst_time);
+    cprintf("Waiting time: %d\n\n", turnaround - burst_time);
+    release(&tickslock);
+
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
@@ -336,15 +342,13 @@ scheduler(void)
 {
   struct proc *p;
   struct proc *np;
-  struct proc *temp;
+  //struct proc *temp;
   struct cpu *c = mycpu();
   c->proc = 0;
-
 
   for(;;){
      //Enable interrupts on this processor.
     sti();
-
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     np = ptable.proc;
@@ -359,16 +363,11 @@ scheduler(void)
       //if it's not runnable or it's priority is less than what we have, continue searching.
       //after this while statement, we will go through switching context.
 
-      else if (p->state == RUNNABLE){
-          if (p < &ptable.proc[NPROC]){
-              np = p + 1;
-          }
-          while(np < &ptable.proc[NPROC]){
-              if (np->state != RUNNABLE){}
-              else if (np->state == RUNNABLE && np->prior_val < p->prior_val){
-                  p = np;
-              }
-              ++np;
+      for (np = p + 1; np <= &ptable.proc[NPROC]; ++np){
+          if (np->state == RUNNABLE && np->prior_val < p->prior_val){
+              //cprintf("Old priority: %d\n",p->prior_val);
+              p = np;
+              //cprintf("New priority: %d\n",p->prior_val);
           }
       }
 
@@ -381,17 +380,24 @@ scheduler(void)
 
       c->proc = p;
 
-      acquire(&tickslock);
-      if (p->prev_ticks < ticks){
-          p->burst += 1;
-          p->prev_ticks = ticks;
-      }
-      release(&tickslock);
 
       switchuvm(p);
       p->state = RUNNING;
+
+        acquire(&tickslock);
+        if (p->prev_ticks < ticks){
+            p->burst += 1;
+            p->prev_ticks = ticks;
+        }
+        release(&tickslock);
+
+
       swtch(&(c->scheduler), p->context);
+
+
+
       switchkvm();
+
 
 
 
@@ -402,7 +408,7 @@ scheduler(void)
       //if it's runnable, then it is waiting.
       //if it is running, then it is not waiting.
       //stopping at 0 or 31, going overboard through starvation may mess up the priority values.
-
+/*
       for (temp = ptable.proc; temp < &ptable.proc[NPROC]; ++temp){
 
           if (temp->state != RUNNABLE){
@@ -415,6 +421,7 @@ scheduler(void)
               temp->prior_val = (temp->prior_val + 1);
           }
       }
+*/
 
 
 
@@ -480,6 +487,14 @@ forkret(void)
   }
 
   // Return to "caller", actually trapret (see allocproc).
+}
+
+int
+set_prior(int val){
+    struct proc *curproc = myproc();
+    curproc->prior_val = val;
+    yield();
+    return 0;
 }
 
 // Atomically release lock and sleep on chan.
@@ -603,10 +618,3 @@ procdump(void)
   }
 }
 
-int
-set_prior(int val){
-    struct proc *curproc = myproc();
-    curproc->prior_val = val;
-    yield();
-    return 0;
-}
