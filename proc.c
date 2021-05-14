@@ -76,6 +76,7 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
+
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -88,7 +89,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->prior_val = 31;    //our implementation, subject to change
+  //p->prior_val = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -111,7 +113,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  p->prior_val = 0;     //Our code
   return p;
 }
 
@@ -233,6 +235,15 @@ exit(void)
   struct proc *p;
   int fd;
 
+  acquire(&tickslock);
+  curproc->finish = ticks;
+  int turnaround = curproc->finish - curproc->start;
+  int burst_time = curproc->burst;
+  cprintf("Priority: %d\n", curproc->prior_val);
+  cprintf("Turnaround: %d\n", turnaround);
+  cprintf("Bursttime: %d\n", burst_time);
+  cprintf("Waiting time: %d\n\n", turnaround - burst_time);
+  release(&tickslock);
 
 
   if(curproc == initproc)
@@ -268,15 +279,7 @@ exit(void)
   }
 
 
-    acquire(&tickslock);
-    curproc->finish = ticks;
-    int turnaround = curproc->finish - curproc->start;
-    int burst_time = curproc->burst;
-    cprintf("Priority: %d\n", curproc->prior_val);
-    cprintf("Turnaround: %d\n", turnaround);
-    cprintf("Bursttime: %d\n", burst_time);
-    cprintf("Waiting time: %d\n\n", turnaround - burst_time);
-    release(&tickslock);
+
 
 
   // Jump into the scheduler, never to return.
@@ -352,24 +355,55 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     np = ptable.proc;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE){
+    for(p = np; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE){
           continue;
-      }
+        }
 
       //found a runnable and higher priority process
       //start searching from there until the end.
       //if theres a higher priority process, p will be updated.
       //if it's not runnable or it's priority is less than what we have, continue searching.
       //after this while statement, we will go through switching context.
-
-      for (np = p + 1; np <= &ptable.proc[NPROC]; ++np){
-          if (np->state == RUNNABLE && np->prior_val < p->prior_val){
-              //cprintf("Old priority: %d\n",p->prior_val);
-              p = np;
-              //cprintf("New priority: %d\n",p->prior_val);
+/*
+      if (np->state != RUNNABLE){
+          np = p;
+      }
+      if (p->prior_val < np->prior_val){
+          //cprintf("%s Yield to: %s\n",np->name,p->name);
+          np = p;
+          if (p < &ptable.proc[NPROC]){
+              continue;
           }
       }
+      else if (p->prior_val == np->prior_val){
+          if (p->burst < np->burst){
+              np = p;
+              if (p < &ptable.proc[NPROC]){
+                  continue;
+              }
+          }
+      }
+      */
+        if (np->state != RUNNABLE){
+            np = p;
+        }
+
+      for (p = p + 1; p < &ptable.proc[NPROC]; ++p){
+          if (p->state == RUNNABLE){
+              if (p->prior_val < np->prior_val){
+                  np = p;
+              }
+              if (p->prior_val == np->prior_val){
+                  if (p->burst < np->burst){
+                      np = p;
+                  }
+              }
+          }
+
+      }
+
+
 
 
 
@@ -378,24 +412,17 @@ scheduler(void)
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
 
-      c->proc = p;
-
-
-      switchuvm(p);
-      p->state = RUNNING;
-
-        acquire(&tickslock);
-        if (p->prev_ticks < ticks){
-            p->burst += 1;
-            p->prev_ticks = ticks;
-        }
+      c->proc = np;
+      switchuvm(np);
+      np->state = RUNNING;
+      acquire(&tickslock);
+      if (np->prev_ticks < ticks){
+          //cprintf("Name: %s\n",np->name);
+          np->burst += 1;
+          np->prev_ticks = ticks;
+      }
         release(&tickslock);
-
-
-      swtch(&(c->scheduler), p->context);
-
-
-
+      swtch(&(c->scheduler),np->context);
       switchkvm();
 
 
@@ -404,6 +431,8 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
+
 
       //if it's runnable, then it is waiting.
       //if it is running, then it is not waiting.

@@ -29,6 +29,7 @@ exec(char *path, char **argv)
 
 
   acquire(&tickslock);
+  curproc->prior_val = 0;
   curproc->prev_ticks = ticks;
   curproc->start = ticks;
   curproc->burst = 0;

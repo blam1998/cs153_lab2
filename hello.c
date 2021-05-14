@@ -11,7 +11,7 @@
 
 int main(){
     int i, k;
-    set_prior(3);
+    set_prior(0);
     //int test = -1 % 32;
     for(i = 0; i < 33000; ++i){
         asm("nop");
